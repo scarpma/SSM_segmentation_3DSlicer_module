@@ -1,0 +1,5 @@
+__pycache__/
+SSM_Seg/
+profiles/
+*.vtp
+.ipynb_checkpoints/
