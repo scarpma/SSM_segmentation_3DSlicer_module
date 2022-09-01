@@ -86,6 +86,8 @@ def extractProfiles(patientName):
         (ii, jj, kk),
         inputVolumeNumpy,
         method='linear',
+        bounds_error=False,
+        fill_value=0.,
     )
 
     SSMModelPath = SSMModelPathTemplate.format(patientName)
@@ -126,8 +128,9 @@ def extractProfiles(patientName):
     pointsIjk = convertRasToIjk(profilePoints.reshape(-1,3))
     profiles = interpolator(pointsIjk).reshape(profilePoints.shape[:-1])
 
-    profiles_norm_grad = np.gradient(profiles, profileSpacing, axis=0)
-    profiles_norm_grad = profiles_norm_grad / profiles_norm_grad.std(axis=0)
+    #profiles_norm_grad = np.gradient(profiles, profileSpacing, axis=0)
+    #profiles_norm_grad = np.gradient(profiles, profileSpacing, axis=0)
+    profiles_norm_grad = profiles
 
     if not osp.isdir(profilesDir):
         os.makedirs(profilesDir)
@@ -151,6 +154,63 @@ def extractProfiles(patientName):
 
 
 if __name__ == "__main__":
+
     import sys
-    assert len(sys.argv) == 2
-    extractProfiles(sys.argv[1])
+    assert len(sys.argv) >= 2
+
+    if sys.argv[1] == 'one':
+        assert(len(sys.argv)==3)
+        extractProfiles(sys.argv[2])
+    elif sys.argv[1] == 'all':
+        import glob
+        import parse
+
+        def find_matches(format_str):
+            expansions = glob.glob(format_str.format("*"))
+            matches  = [parse.parse(format_str, exp)[0] for exp in expansions]
+            return sorted(matches)
+
+        def compare_found_patients(*lists):
+            sets = [set(l) for l in lists]
+            union = set()
+            union = union.union(*sets)
+            #print(union)
+            intersection = union.copy()
+            intersection = intersection.intersection(*sets)
+            print(f"{len(intersection)} valid patients")
+            for ii, s in enumerate(sets):
+                print(f"unique patients of set {ii}:")
+                print(s-intersection)
+            return sorted(list(intersection))
+
+        def printPatientNames(l):
+            for i in range(len(l)):
+                if i%5!=0 or i==0 :
+                    print("{:4s}".format(l[i]), end=" ")
+                else:
+                    print("{:4s}".format(l[i]))
+
+        volumePatients = find_matches(inputVolumePathTemplate)
+        modelPatients = find_matches(origModelPathTemplate)
+        SSMPatients = find_matches(SSMModelPathTemplate)
+        patientNames = compare_found_patients(volumePatients, modelPatients, SSMPatients)
+        printPatientNames(patientNames)
+
+        for patientName in patientNames:
+            print(patientName)
+            extractProfiles(patientName)
+    else:
+        print("sys.argv[1] must be 'one' or 'all'")
+
+
+
+
+
+
+
+
+
+
+
+
+
