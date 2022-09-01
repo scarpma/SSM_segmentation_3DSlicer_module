@@ -14,6 +14,7 @@ inputVolumePathTemplate = "/home/bcl/Martino/aorta_segmentation_v3/aorta_dataset
 convertSSMModelsToRAS = True
 SSMModelPathTemplate = "/home/bcl/Martino/aortaRegistrationPytorch3d/aligned_dataset_meshmixer_corrected_relaxed_smoothedBou/V2_to_{}_relaxed.vtp"
 origModelPathTemplate = "/home/bcl/Martino/aorta_segmentation_v3/aorta_dataset_nii/simulationModelsTr/{}.vtp"
+nSamplePoints = 30
 profileSpacing = 1. #mm
 profileLen = 20 #mm
 profilesDir = "./profiles/"
@@ -65,7 +66,7 @@ def getGreedyPerm(D, M):
         ds = np.minimum(ds, D[idx, :])
     return (perm, lambdas)
 
-def extractProfiles(patientName):
+def extractProfiles(patientName, nSamplePoints=None):
 
     def convertRasToIjk(points):
         points = np.c_[points, np.ones(points.shape[0])]
@@ -104,18 +105,19 @@ def extractProfiles(patientName):
 
     #SSMTransformed.save('SSMTrasformed.vtp')
 
-    # # define sample points
-    # distances = scipy.spatial.distance.pdist(SSMTransformed.points , metric='euclidean')
-    # distances = scipy.spatial.distance.squareform(distances, force='tomatrix', checks=True)
-    # nSamplePoints = 500
-    # samplePointsIdxs = getGreedyPerm(distances, nSamplePoints)[0]
-    # samplePoints = SSMTransformed.points[samplePointsIdxs]
-    # np.savetxt('samplePoints.txt', samplePointsIdxs, fmt="%i", delimiter=',')
-    # pv.PolyData(samplePoints).save('samplePointsForA2Model.vtp')
+    if nSamplePoints is not None:
+        # define sample points
+        distances = scipy.spatial.distance.pdist(SSMTransformed.points , metric='euclidean')
+        distances = scipy.spatial.distance.squareform(distances, force='tomatrix', checks=True)
+        samplePointsIdxs = getGreedyPerm(distances, nSamplePoints)[0]
+        samplePoints = SSMTransformed.points[samplePointsIdxs]
+        np.savetxt('./profile/samplePoints.txt', samplePointsIdxs, fmt="%i", delimiter=',')
+        pv.PolyData(samplePoints).save('samplePointsFor{}.vtp'.format(patientName))
 
-    samplePointsIdxs = np.loadtxt('samplePoints.txt', dtype=int)
+    samplePointsIdxs = np.loadtxt('./profile/samplePoints.txt', dtype=int)
     samplePoints = SSMTransformed.points[samplePointsIdxs]
     sampleNormals = SSMTransformed['Normals'][samplePointsIdxs]
+
 
     def computeProfilePoints(point, direction):
         t = np.arange(-profileLen/2., (profileLen)/2 + profileSpacing, profileSpacing)
@@ -128,9 +130,9 @@ def extractProfiles(patientName):
     pointsIjk = convertRasToIjk(profilePoints.reshape(-1,3))
     profiles = interpolator(pointsIjk).reshape(profilePoints.shape[:-1])
 
-    #profiles_norm_grad = np.gradient(profiles, profileSpacing, axis=0)
-    #profiles_norm_grad = np.gradient(profiles, profileSpacing, axis=0)
-    profiles_norm_grad = profiles
+    # profiles_norm_grad = np.gradient(profiles, profileSpacing, axis=0)
+    profiles_norm_grad = np.gradient(profiles, profileSpacing, axis=0)
+    #profiles_norm_grad = profiles
 
     if not osp.isdir(profilesDir):
         os.makedirs(profilesDir)
@@ -196,9 +198,12 @@ if __name__ == "__main__":
         patientNames = compare_found_patients(volumePatients, modelPatients, SSMPatients)
         printPatientNames(patientNames)
 
-        for patientName in patientNames:
+        for ii, patientName in enumerate(patientNames):
             print(patientName)
-            extractProfiles(patientName)
+            if ii == 0:
+                extractProfiles(patientName, nSamplePoints)
+            else:
+                extractProfiles(patientName)
     else:
         print("sys.argv[1] must be 'one' or 'all'")
 
